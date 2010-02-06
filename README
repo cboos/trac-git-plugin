@@ -1,6 +1,6 @@
-=========
 GitPlugin
 =========
 
-see http://www.trac-hacks.org/wiki/GitPlugin for instructions
+This is a port of http://www.trac-hacks.org/wiki/GitPlugin for Trac 0.12.
 
+See the trac-hacks site for more information.
