@@ -1,5 +1,5 @@
-GitPlugin
-=========
+trac-git-plugin
+===============
 
 This is a port of http://www.trac-hacks.org/wiki/GitPlugin for Trac 0.12.
 
