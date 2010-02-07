@@ -26,6 +26,14 @@ from trac.config import BoolOption, IntOption, PathOption, Option
 class CachedRepository2(CachedRepository):
         def short_rev(self, path):
                 return self.repos.short_rev(path)
+        def normalize_rev(self, rev):
+                if not rev:
+                        return self.repos.get_youngest_rev()
+                normrev=self.repos.git.verifyrev(rev)
+                if normrev is None:
+                        raise NoSuchChangeset(rev)
+                return normrev
+
 
 from genshi.builder import tag
 from genshi.core import Markup, escape
