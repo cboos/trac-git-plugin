@@ -34,6 +34,12 @@ class GitErrorSha(GitError):
 
 
 class GitCore:
+    """`git` command-line wrapper."""
+    
+    popen_args = dict(stdin=None, stdout=PIPE, stderr=PIPE)
+    if sys.platform != "win32":
+        popen_args['close_fds'] = True
+        
     def __init__(self, git_dir=None, git_bin="git"):
         self.__git_bin = git_bin
         self.__git_dir = git_dir
@@ -43,44 +49,30 @@ class GitCore:
 
     def __build_git_cmd(self, gitcmd, *args):
         """Construct command tuple for git call suitable for Popen()"""
-
         cmd = [self.__git_bin]
         if self.__git_dir:
-            cmd.append('--git-dir=%s' % self.__git_dir)
+            cmd.append('--git-dir=' + self.__git_dir)
         cmd.append(gitcmd)
         cmd.extend(args)
-
+        #print>>sys.stderr, "GITDEBUG: %r" % cmd
         return cmd
 
     def __execute(self, git_cmd, *cmd_args):
         """Execute git command and return file-like object of stdout"""
-
-        #print >>sys.stderr, "DEBUG:", git_cmd, cmd_args
-
-        if sys.platform == "win32":
-            p = Popen(self.__build_git_cmd(git_cmd, *cmd_args),
-                      stdin=None, stdout=PIPE, stderr=PIPE)
-        else:
-            p = Popen(self.__build_git_cmd(git_cmd, *cmd_args),
-                      stdin=None, stdout=PIPE, stderr=PIPE, close_fds=True)
-
+        p = Popen(self.__build_git_cmd(git_cmd, *cmd_args), **self.popen_args)
         stdout_data, stderr_data = p.communicate()
         #TODO, do something with p.returncode, e.g. raise exception
-
         return stdout_data
 
     def __getattr__(self, name):
         return partial(self.__execute, name.replace('_','-'))
 
-    __is_sha_pat = re.compile(r'[0-9A-Fa-f]*$')
+    __is_sha_pat = re.compile(r'[0-9A-Fa-f]{4,40}$')
 
     @classmethod
     def is_sha(cls,sha):
         """returns whether sha is a potential sha id
         (i.e. proper hexstring between 4 and 40 characters"""
-        if not (4 <= len(sha) <= 40):
-            return False
-
         return bool(cls.__is_sha_pat.match(sha))
 
 
@@ -161,7 +153,7 @@ class Storage:
 
     @staticmethod
     def git_version(git_bin="git"):
-        GIT_VERSION_MIN_REQUIRED = (1,5,6)
+        GIT_VERSION_MIN_REQUIRED = (1, 5, 6)
         try:
             g = GitCore(git_bin=git_bin)
             [v] = g.version().splitlines()
@@ -205,11 +197,9 @@ class Storage:
                                   git_dir)
             raise GitError("GIT control files not found, maybe wrong "
                            "directory?")
-
         self.logger.debug("PyGIT.Storage instance %d constructed", id(self))
 
         self.repo = GitCore(git_dir, git_bin=git_bin)
-
         self.commit_encoding = None
 
         # caches
@@ -375,7 +365,7 @@ class Storage:
         db = self.get_commits()
 
         if sha not in db:
-            raise GitErrorSha
+            raise GitErrorSha()
 
         if rel_pos == 0:
             return sha
@@ -390,7 +380,8 @@ class Storage:
                 return k
 
         # should never be reached if db is consistent
-        raise GitError("internal inconsistency detected")
+        raise GitError("internal inconsistency detected in "
+                       "history_relative_rev")
 
     def hist_next_revision(self, sha):
         return self.history_relative_rev(sha, -1)
@@ -411,7 +402,7 @@ class Storage:
         return self.verifyrev("HEAD")
 
     def verifyrev(self, rev):
-        """verify/lookup given revision object and return a sha id
+        """Verify/lookup given revision object and return a sha id
 
         Return None if lookup failed.
         
@@ -435,7 +426,7 @@ class Storage:
             return rc
 
         if rc in tag_db:
-            sha=self.repo.cat_file("tag", rc).split(None, 2)[:2]
+            sha = self.repo.cat_file("tag", rc).split(None, 2)[:2]
             if sha[0] != 'object':
                 self.logger.debug("unexpected result from "
                                   "'git-cat-file tag %s'", rc)
@@ -445,7 +436,7 @@ class Storage:
         return None
 
     def shortrev(self, rev, min_len=7):
-        "try to shorten sha id"
+        """Try to shorten sha id"""
         #try to emulate the following:
         #return self.repo.rev_parse("--short", str(rev)).strip()
         rev = str(rev)
@@ -468,15 +459,15 @@ class Storage:
         # the other ones from srevs
         crevs = srevs - set([rev])
 
-        for l in range(min_len+1, 40):
+        for l in range(min_len + 1, 40):
             srev = rev[:l]
-            if srev not in [ r[:l] for r in crevs ]:
+            if srev not in [r[:l] for r in crevs]:
                 return srev
 
         return rev # worst-case, all except the last character match
 
     def fullrev(self, srev):
-        "try to reverse shortrev()"
+        """Try to reverse shortrev()"""
         srev = str(srev)
         db, tag_db, sdb = self.rev_cache[2:5]
 
@@ -499,18 +490,18 @@ class Storage:
         return None
 
     def get_branches(self):
-        """returns list of (local) branches.
+        """Returns list of (local) branches.
 
         The active branch (= HEAD) is the first item.
         
         """
         result=[]
         for e in self.repo.branch("-v", "--no-abbrev").splitlines():
-            (bname,bsha)=e[1:].strip().split()[:2]
+            (bname, bsha) = e[1:].strip().split()[:2]
             if e.startswith('*'):
-                result.insert(0,(bname,bsha))
+                result.insert(0, (bname, bsha))
             else:
-                result.append((bname,bsha))
+                result.append((bname, bsha))
         return result
 
     def get_tags(self):
@@ -524,18 +515,18 @@ class Storage:
         tree = self.repo.ls_tree("-z", "-l", rev, "--", path).split('\0')
 
         def split_ls_tree_line(l):
-            """split according to '<mode> <type> <sha> <size>\t<fname>'"""
-            meta,fname = l.split('\t')
-            _mode,_type,_sha,_size = meta.split()
+            """Split according to '<mode> <type> <sha> <size>\t<fname>'"""
+            meta, fname = l.split('\t')
+            _mode, _type, _sha, _size = meta.split()
 
             if _size == '-':
                 _size = None
             else:
                 _size = int(_size)
 
-            return _mode,_type,_sha,_size,fname
+            return _mode, _type, _sha, _size, fname
 
-        return [ split_ls_tree_line(e) for e in tree if e ]
+        return [split_ls_tree_line(e) for e in tree if e]
 
     def read_commit(self, commit_id):
         if not commit_id:
@@ -546,7 +537,7 @@ class Storage:
         db = self.get_commits()
         if commit_id not in db:
             self.logger.info("read_commit failed for '%s'", commit_id)
-            raise GitErrorSha
+            raise GitErrorSha()
 
         with self.__commit_msg_lock:
             if commit_id in self.__commit_msg_cache:
@@ -560,7 +551,7 @@ class Storage:
             lines = raw.splitlines()
 
             if not lines:
-                raise GitErrorSha
+                raise GitErrorSha()
 
             line = lines.pop(0)
             props = {}
@@ -638,27 +629,25 @@ class Storage:
     def history(self, sha, path, limit=None):
         if limit is None:
             limit = -1
-
         tmp = self.repo.rev_list("--max-count=%d" % limit, str(sha), "--",
                                  path)
-        return [ rev.strip() for rev in tmp.splitlines() ]
+        return [rev.strip() for rev in tmp.splitlines()]
 
     def history_timerange(self, start, stop):
-        return [ rev.strip() for rev in \
-                     self.repo.rev_list("--reverse",
-                                        "--max-age=%d" % start,
-                                        "--min-age=%d" % stop,
-                                        "--all").splitlines() ]
+        return [rev.strip() for rev in
+                self.repo.rev_list("--reverse",
+                                   "--max-age=%d" % start,
+                                   "--min-age=%d" % stop,
+                                   "--all").splitlines()]
 
     def rev_is_anchestor_of(self, rev1, rev2):
-        """return True if rev2 is successor of rev1"""
+        """Return True if rev2 is successor of rev1"""
         rev1 = rev1.strip()
         rev2 = rev2.strip()
         return rev2 in self.children_recursive(rev1)
 
     def blame(self, commit_sha, path):
         in_metadata = False
-
         for line in self.repo.blame("-p", "--", path,
                                     str(commit_sha)).splitlines():
             assert line
@@ -691,7 +680,6 @@ class Storage:
         diff_tree_args.extend([str(tree1) if tree1 else "--root",
                                str(tree2),
                                "--", path])
-
         lines = self.repo.diff_tree(*diff_tree_args).split('\0')
 
         assert lines[-1] == ""
@@ -750,7 +738,7 @@ if __name__ == '__main__':
                 result = t.read().split()
                 t.close()
                 assert len(result) == 7
-                return tuple([ __pagesize*int(p) for p in result ])
+                return tuple([__pagesize*int(p) for p in result])
             except:
                 raise RuntimeError("failed to get memory stats")
 
@@ -818,7 +806,7 @@ if __name__ == '__main__':
     print len(check4loops(g.parents(g.head())[0]))
 
     #p = g.head()
-    #revs = [ g.history_relative_rev(p, i) for i in range(0,10) ]
+    #revs = [g.history_relative_rev(p, i) for i in range(0,10)]
     print_data_usage()
     revs = g.get_commits().keys()
     print_data_usage()
