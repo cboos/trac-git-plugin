@@ -1,0 +1,7 @@
+*~
+.*.sw[op]
+TracGit.egg-info/
+build
+dist
+*.pyc
+
