@@ -71,6 +71,19 @@ def _parse_user_time(s):
 class GitConnector(Component):
     implements(IRepositoryConnector, IWikiSyntaxProvider, IPropertyRenderer)
 
+    _persistent_cache = BoolOption('git', 'persistent_cache', 'false',
+                       "Enable persistent caching of commit tree")
+
+    _cached_repository = BoolOption('git', 'cached_repository', 'false',
+                    "Wrap `GitRepository` in `CachedRepository`")
+
+    _shortrev_len = IntOption('git', 'shortrev_len', 7,
+                  "Length rev sha sums should be tried to be abbreviated to"
+                  " (must be >= 4 and <= 40)")
+
+    _git_bin = PathOption('git', 'git_bin', '/usr/bin/git',
+                  "Path to git executable (relative to trac project folder!)")
+
     def __init__(self):
         self._version = None
 
@@ -80,12 +93,12 @@ class GitConnector(Component):
             self.log.error("GitError: %s", e)
 
         if self._version:
-            self.log.info("detected GIT version %s" % self._version['v_str'])
+            self.log.info("detected GIT version %s", self._version['v_str'])
             self.env.systeminfo.append(('GIT', self._version['v_str']))
             if not self._version['v_compatible']:
                 self.log.error("GIT version %s installed not compatible "
-                               "(need >= %s)" % (self._version['v_str'],
-                                                 self._version['v_min_str']))
+                               "(need >= %s)" , self._version['v_str'],
+                               self._version['v_min_str'])
 
     def _format_sha_link(self, formatter, ns, sha, label, fullmatch=None):
         try:
@@ -97,6 +110,35 @@ class GitConnector(Component):
             return tag.a(label, class_="missing changeset",
                      href=formatter.href.changeset(sha),
                      title=unicode(e), rel="nofollow")
+
+    # IRepositoryConnector methods
+
+    def get_supported_types(self):
+        yield ("git", 8)
+
+    def get_repository(self, type, dir, params):
+        """GitRepository factory method"""
+        assert type == "git"
+
+        if not self._version:
+            raise TracError("GIT backend not available")
+        elif not self._version['v_compatible']:
+            raise TracError("GIT version %s installed not compatible "
+                            "(need >= %s)" % (self._version['v_str'],
+                                              self._version['v_min_str']))
+
+        repos = GitRepository(dir, params, self.log,
+                      persistent_cache=self._persistent_cache,
+                      git_bin=self._git_bin,
+                      shortrev_len=self._shortrev_len)
+
+        if self._cached_repository:
+            repos = CachedRepository2(self.env, repos, self.log)
+            self.log.info("enabled CachedRepository for '%s'", dir)
+        else:
+            self.log.info("disabled CachedRepository for '%s'", dir)
+
+        return repos
 
     # IPropertyRenderer methods
 
@@ -134,49 +176,6 @@ class GitConnector(Component):
     def get_link_resolvers(self):
         yield ('sha', self._format_sha_link)
 
-    # IRepositoryConnector methods
-
-    _persistent_cache = BoolOption('git', 'persistent_cache', 'false',
-                       "Enable persistent caching of commit tree")
-
-    _cached_repository = BoolOption('git', 'cached_repository', 'false',
-                    "Wrap `GitRepository` in `CachedRepository`")
-
-    _shortrev_len = IntOption('git', 'shortrev_len', 7,
-                  "Length rev sha sums should be tried to be abbreviated to"
-                  " (must be >= 4 and <= 40)")
-
-    _git_bin = PathOption('git', 'git_bin', '/usr/bin/git',
-                  "Path to git executable (relative to trac project folder!)")
-
-
-    def get_supported_types(self):
-        yield ("git", 8)
-
-    def get_repository(self, type, dir, params):
-        """GitRepository factory method"""
-        assert type == "git"
-
-        if not self._version:
-            raise TracError("GIT backend not available")
-        elif not self._version['v_compatible']:
-            raise TracError("GIT version %s installed not compatible "
-                            "(need >= %s)" % (self._version['v_str'],
-                                              self._version['v_min_str']))
-
-        repos = GitRepository(dir, params, self.log,
-                      persistent_cache=self._persistent_cache,
-                      git_bin=self._git_bin,
-                      shortrev_len=self._shortrev_len)
-
-        if self._cached_repository:
-            repos = CachedRepository2(self.env, repos, self.log)
-            self.log.info("enabled CachedRepository for '%s'" % dir)
-        else:
-            self.log.info("disabled CachedRepository for '%s'" % dir)
-
-        return repos
-
 
 class GitRepository(Repository):
     def __init__(self, path, params, log, persistent_cache=False,
@@ -187,7 +186,7 @@ class GitRepository(Repository):
         self._shortrev_len = max(4, min(shortrev_len, 40))
 
         self.git = PyGIT.StorageFactory(path, log, not persistent_cache,
-                        git_bin=git_bin).getInstance()
+                                        git_bin=git_bin).getInstance()
         Repository.__init__(self, "git:"+path, self.params, log)
 
     def close(self):
@@ -393,10 +392,11 @@ class GitNode(Node):
             user,ts = _parse_user_time(props['committer'][0])
         except:
             self.log.error("internal error (could not get timestamp from "
-                           "commit '%s')" % self.rev)
+                           "commit '%s')", self.rev)
             return None
 
         return ts
+
 
 class GitChangeset(Changeset):
 

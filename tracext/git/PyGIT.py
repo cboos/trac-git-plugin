@@ -32,6 +32,7 @@ class GitError(Exception):
 class GitErrorSha(GitError):
     pass
 
+
 class GitCore:
     def __init__(self, git_dir=None, git_bin="git"):
         self.__git_bin = git_bin
@@ -82,6 +83,7 @@ class GitCore:
 
         return bool(cls.__is_sha_pat.match(sha))
 
+
 class SizedDict(dict):
     """Helper class for caching..."""
     def __init__(self, max_size=0):
@@ -109,6 +111,7 @@ class SizedDict(dict):
     def setdefault(k,d=None):
         # TODO
         raise AttributeError("SizedDict has no setdefault() method")
+
 
 class StorageFactory:
     __dict = weakref.WeakValueDictionary()
@@ -143,6 +146,7 @@ class StorageFactory:
         self.logger.debug("requested %sPyGIT.Storage instance %d for '%s'",
                           ("","weak ")[is_weak], id(self.__inst), self.__repo)
         return self.__inst
+
 
 class Storage:
     __SREV_MIN = 4 # minimum short-rev length
@@ -288,7 +292,7 @@ class Storage:
 
                     # new_db[rev] = (children(rev), parents(rev),
                     #                ordinal_id(rev))
-                    if new_db.has_key(rev):
+                    if rev in new_db:
                         _children,_parents,_ord_rev = new_db[rev]
                         assert _children
                         assert not _parents
@@ -427,7 +431,7 @@ class Storage:
         if not rc:
             return None
 
-        if db.has_key(rc):
+        if rc in db:
             return rc
 
         if rc in tag_db:
@@ -545,7 +549,7 @@ class Storage:
             raise GitErrorSha
 
         with self.__commit_msg_lock:
-            if self.__commit_msg_cache.has_key(commit_id):
+            if commit_id in self.__commit_msg_cache:
                 # cache hit
                 result = self.__commit_msg_cache[commit_id]
                 return result[0], dict(result[1])
