@@ -15,13 +15,13 @@
 
 from __future__ import with_statement
 
+import cStringIO
 import os, re, sys, time, weakref
+
 from collections import deque
 from functools import partial
 from threading import Lock
 from subprocess import Popen, PIPE
-import cStringIO
-import string
 
 __all__ = ["git_version", "GitError", "GitErrorSha", "Storage",
            "StorageFactory"]

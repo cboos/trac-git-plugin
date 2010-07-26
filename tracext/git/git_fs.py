@@ -13,26 +13,26 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-from trac.core import *
-from trac.util import TracError, shorten_line
-from trac.util.datefmt import FixedOffset, to_timestamp
-from trac.versioncontrol.api import Changeset, Node, Repository, \
-     IRepositoryConnector, NoSuchChangeset, NoSuchNode
-from trac.wiki import IWikiSyntaxProvider
-from trac.versioncontrol.cache import CachedRepository
-from trac.versioncontrol.web_ui import IPropertyRenderer
-from trac.config import BoolOption, IntOption, PathOption, Option
+from datetime import datetime
+import time, sys
 
 from genshi.builder import tag
 from genshi.core import Markup, escape
 
-from datetime import datetime
-import time, sys
+from trac.config import BoolOption, IntOption, PathOption, Option
+from trac.core import *
+from trac.util import TracError, shorten_line
+from trac.util.datefmt import FixedOffset, to_timestamp
+from trac.versioncontrol.api import (Changeset, IRepositoryConnector, Node,
+                                     NoSuchChangeset, NoSuchNode, Repository)
+from trac.versioncontrol.cache import CachedRepository
+from trac.versioncontrol.web_ui import IPropertyRenderer, RenderedProperty
+from trac.wiki import IWikiSyntaxProvider
+
+import PyGIT
 
 if not sys.version_info[:2] >= (2,5):
     raise TracError("This plugin requires Python >= 2.5")
-
-import PyGIT
 
 
 # for some reason CachedRepository doesn't pass-through short_rev()s
