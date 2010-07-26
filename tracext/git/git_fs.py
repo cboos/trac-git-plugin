@@ -23,6 +23,7 @@ from trac.config import BoolOption, IntOption, PathOption, Option
 from trac.core import *
 from trac.util import TracError, shorten_line
 from trac.util.datefmt import FixedOffset, to_timestamp
+from trac.util.text import to_unicode
 from trac.versioncontrol.api import (Changeset, IRepositoryConnector, Node,
                                      NoSuchChangeset, NoSuchNode, Repository)
 from trac.versioncontrol.cache import CachedRepository
@@ -100,16 +101,26 @@ class GitConnector(Component):
                                "(need >= %s)" , self._version['v_str'],
                                self._version['v_min_str'])
 
-    def _format_sha_link(self, formatter, ns, sha, label, fullmatch=None):
-        try:
-            changeset = self.env.get_repository().get_changeset(sha)
-            return tag.a(label, class_="changeset",
-                     title=shorten_line(changeset.message),
-                     href=formatter.href.changeset(sha))
-        except TracError, e:
-            return tag.a(label, class_="missing changeset",
-                     href=formatter.href.changeset(sha),
-                     title=unicode(e), rel="nofollow")
+    def _format_sha_link(self, context, sha, label):
+        reponame = ''
+        while context:
+            if context.resource.realm in ('source', 'changeset'):
+                reponame = context.resource.parent.id
+                break
+            context = context.parent
+        repos = self.env.get_repository(reponame)
+        if repos:
+            try:
+                changeset = repos.get_changeset(sha)
+                return tag.a(label, class_="changeset",
+                             title=shorten_line(changeset.message),
+                             href=context.href.changeset(sha, reponame))
+            except NoSuchChangeset, e:
+                errmsg = to_unicode(e)
+        else:
+            errmsg = _("Repository '%(repo)s' not found", repo=reponame)
+        return tag.a(label, class_="missing changeset", title=errmsg,
+                     rel="nofollow")
 
     # IRepositoryConnector methods
 
@@ -144,42 +155,45 @@ class GitConnector(Component):
 
     # relied upon by GitChangeset
     def match_property(self, name, mode):
-        if name in ('Parents','Children','git-committer','git-author') and \
-               mode == 'revprop':
+        if name.startswith('git-') and mode == 'revprop':
             return 8 # default renderer has priority 1
         return 0
 
     def render_property(self, name, mode, context, props):
-        def sha_link(sha):
-            return self._format_sha_link(context, 'sha', sha, sha)
-
-        if name in ('Parents','Children'):
+        assert(name.startswith('git-'))
+        content = None
+        if name in ('git-Parents', 'git-Children'):
             revs = props[name]
-
-            return tag([tag(sha_link(rev), ', ') for rev in revs[:-1]],
-                   sha_link(revs[-1]))
+            content = tag([tag(self._format_sha_link(context, rev, rev), ', ')
+                           for rev in revs[:-1]],
+                          self._format_sha_link(context, revs[-1], revs[-1]))
 
         if name in ('git-committer', 'git-author'):
-            user_,time_ = props[name]
-            _str = user_ + " / " + time_.strftime('%Y-%m-%dT%H:%M:%SZ%z')
-            return unicode(_str)
-
-        raise TracError("internal error")
+            user_, time_ = props[name]
+            content = to_unicode(user_) + " / " + \
+                      time_.strftime('%Y-%m-%dT%H:%M:%SZ%z')
+        if content:
+            return RenderedProperty(name=name[4:] + ':',
+                                    name_attributes=[("class", "property")],
+                                    content=content)
+        else:
+            raise TracError("Can't render property '%s'" % name)
 
     # IWikiSyntaxProvider methods
 
     def get_wiki_syntax(self):
         yield (r'(?:\b|!)[0-9a-fA-F]{40,40}\b',
                lambda fmt, sha, match:
-                   self._format_sha_link(fmt, 'changeset', sha, sha))
+               self._format_sha_link(fmt.context, sha, sha))
 
     def get_link_resolvers(self):
-        yield ('sha', self._format_sha_link)
+        yield ('sha', lambda formatter, ns, sha, label, fullmatch=None:
+               self._format_sha_link(formatter.context, sha, label))
 
 
 class GitRepository(Repository):
     def __init__(self, path, params, log, persistent_cache=False,
-            git_bin='git', shortrev_len=7):
+                 git_bin='git', shortrev_len=7):
         self.logger = log
         self.gitrepo = path
         self.params = params
@@ -430,9 +444,9 @@ class GitChangeset(Changeset):
     def get_properties(self):
         properties = {}
         if 'parent' in self.props:
-            properties['Parents'] = self.props['parent']
+            properties['git-Parents'] = self.props['parent']
         if 'children' in self.props:
-            properties['Children'] = self.props['children']
+            properties['git-Children'] = self.props['children']
         if 'committer' in self.props:
             properties['git-committer'] = \
                 _parse_user_time(self.props['committer'][0])
@@ -440,7 +454,6 @@ class GitChangeset(Changeset):
             git_author = _parse_user_time(self.props['author'][0])
             if not properties.get('git-committer') == git_author:
                 properties['git-author'] = git_author
-
         return properties
 
     def get_changes(self):
