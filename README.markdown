@@ -2,15 +2,15 @@ trac-git-plugin
 ===============
 
 This is a port of [GitPlugin](http://www.trac-hacks.org/wiki/GitPlugin) for
-Trac 0.12.
+Trac 0.13.
 
 
 Current Status
 --------------
 
-The plugin seems to be working well at the moment.  Multi-repository support
-is working, as are both the cached and uncached repository options.  Some
-parts might still be a little rough around the edges though :)
+The plugin seems to be working at the moment...
+Multi-repository support is OK in the uncached repository version.
+The cached version is still untested.
 
 
 Getting Started
