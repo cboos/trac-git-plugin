@@ -325,7 +325,7 @@ class Storage:
                 # convert sdb either to dict or array depending on size
                 tmp = {}
                 if len(new_sdb) > 5000:
-                    [()] * (max(new_sdb.keys()) + 1)
+                    tmp = [()] * (max(new_sdb.keys()) + 1)
 
                 try:
                     while True:
