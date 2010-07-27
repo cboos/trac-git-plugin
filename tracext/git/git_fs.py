@@ -32,7 +32,7 @@ from trac.wiki import IWikiSyntaxProvider
 
 import PyGIT
 
-if not sys.version_info[:2] >= (2,5):
+if not sys.version_info[:2] >= (2, 5):
     raise TracError("This plugin requires Python >= 2.5")
 
 
@@ -63,10 +63,10 @@ def _parse_user_time(s):
     """Parse author/committer attribute lines and return (user,timestamp)
 
     """
-    (user,time,tz_str) = s.rsplit(None, 2)
+    (user, time, tz_str) = s.rsplit(None, 2)
     tz = FixedOffset((int(tz_str)*6)/10, tz_str)
     time = datetime.fromtimestamp(float(time), tz)
-    return (user,time)
+    return (user, time)
 
 
 class GitConnector(Component):
@@ -201,7 +201,7 @@ class GitRepository(Repository):
 
         self.git = PyGIT.StorageFactory(path, log, not persistent_cache,
                                         git_bin=git_bin).getInstance()
-        Repository.__init__(self, "git:"+path, self.params, log)
+        Repository.__init__(self, "git:" + path, self.params, log)
 
     def close(self):
         self.git = None
@@ -237,7 +237,7 @@ class GitRepository(Repository):
         return GitNode(self, path, rev, self.log)
 
     def get_quickjump_entries(self, rev):
-        for bname,bsha in self.git.get_branches():
+        for bname, bsha in self.git.get_branches():
             yield 'branches', bname, '/', bsha
         for t in self.git.get_tags():
             yield 'tags', t, '/', t
@@ -259,7 +259,7 @@ class GitRepository(Repository):
 
         for chg in self.git.diff_tree(old_rev, new_rev,
                                       self.normalize_path(new_path)):
-            (mode1,mode2,obj1,obj2,action,path,path2) = chg
+            (mode1, mode2, obj1, obj2, action, path, path2) = chg
 
             kind = Node.FILE
             if mode2.startswith('04') or mode1.startswith('04'):
@@ -342,7 +342,7 @@ class GitNode(Node):
         Node.__init__(self, repos, path, rev, kind)
 
     def __git_path(self):
-        "return path as expected by PyGIT"
+        """Return path as expected by PyGIT"""
         p = self.path.strip('/')
         if self.isfile:
             assert p
@@ -365,7 +365,7 @@ class GitNode(Node):
         if not self.isfile:
             return
 
-        return [rev for (rev,lineno)
+        return [rev for (rev, lineno)
                 in self.repos.git.blame(self.rev, self.__git_path())]
 
     def get_entries(self):
@@ -403,7 +403,7 @@ class GitNode(Node):
 
         try:
             msg, props = self.repos.git.read_commit(self.rev)
-            user,ts = _parse_user_time(props['committer'][0])
+            user, ts = _parse_user_time(props['committer'][0])
         except:
             self.log.error("internal error (could not get timestamp from "
                            "commit '%s')", self.rev)
@@ -459,7 +459,7 @@ class GitChangeset(Changeset):
     def get_changes(self):
         paths_seen = set()
         for parent in self.props.get('parent', [None]):
-            for mode1,mode2,obj1,obj2,action,path1,path2 in \
+            for mode1, mode2, obj1, obj2, action, path1, path2 in \
                     self.repos.git.diff_tree(parent, self.rev,
                                              find_renames=True):
                 path = path2 or path1

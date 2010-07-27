@@ -157,7 +157,7 @@ class Storage:
         try:
             g = GitCore(git_bin=git_bin)
             [v] = g.version().splitlines()
-            _,_,version = v.strip().split()
+            _, _, version = v.strip().split()
             # 'version' has usually at least 3 numeric version components, e.g.
             #  1.5.4.2
             #  1.5.4.3.230.g2db511
@@ -179,8 +179,7 @@ class Storage:
             result['v_compatible'] = split_version >= GIT_VERSION_MIN_REQUIRED
             return result
         except Exception, e:
-            print e
-            raise GitError("Could not retrieve GIT version")
+            raise GitError("Could not retrieve GIT version (%r)" % e)
 
     def __init__(self, git_dir, log, git_bin='git'):
         self.logger = log
@@ -189,7 +188,7 @@ class Storage:
         __git_file_path = partial(os.path.join, git_dir)
         if not all(map(os.path.exists,
                        map(__git_file_path,
-                           ['HEAD','objects','refs']))):
+                           ['HEAD', 'objects', 'refs']))):
             self.logger.error("GIT control files missing in '%s'", git_dir)
             if os.path.exists(__git_file_path('.git')):
                 self.logger.error("entry '.git' found in '%s'"
@@ -276,14 +275,14 @@ class Storage:
                     ord_rev += 1
 
                     # first rev seen is assumed to be the youngest one
-                    # (and has ord_rev=1)
+                    # (and has ord_rev==1)
                     if not youngest:
                         youngest = rev
 
                     # new_db[rev] = (children(rev), parents(rev),
                     #                ordinal_id(rev))
                     if rev in new_db:
-                        _children,_parents,_ord_rev = new_db[rev]
+                        _children, _parents, _ord_rev = new_db[rev]
                         assert _children
                         assert not _parents
                         assert _ord_rev == 0
@@ -314,7 +313,7 @@ class Storage:
                 tmp = {}
                 try:
                     while True:
-                        k,v = new_db.popitem()
+                        k, v = new_db.popitem()
                         assert v[2] > 0
                         tmp[k] = tuple(v[0]), v[1], v[2]
                 except KeyError:
@@ -330,7 +329,7 @@ class Storage:
 
                 try:
                     while True:
-                        k,v = new_sdb.popitem()
+                        k, v = new_sdb.popitem()
                         tmp[k] = tuple(v)
                 except KeyError:
                     pass
@@ -375,7 +374,7 @@ class Storage:
         if lin_rev < 1 or lin_rev > len(db):
             return None
 
-        for k,v in db.iteritems():
+        for k, v in db.iteritems():
             if v[2] == lin_rev:
                 return k
 
@@ -518,11 +517,7 @@ class Storage:
             """Split according to '<mode> <type> <sha> <size>\t<fname>'"""
             meta, fname = l.split('\t')
             _mode, _type, _sha, _size = meta.split()
-
-            if _size == '-':
-                _size = None
-            else:
-                _size = int(_size)
+            _size = int(_size) if _size != '-' else None
 
             return _mode, _type, _sha, _size, fname
 
@@ -556,8 +551,8 @@ class Storage:
             line = lines.pop(0)
             props = {}
             while line:
-                (key,value) = line.split(None, 1)
-                props.setdefault(key,[]).append(value.strip())
+                (key, value) = line.split(None, 1)
+                props.setdefault(key, []).append(value.strip())
                 line = lines.pop(0)
 
             result = ("\n".join(lines), props)
@@ -667,10 +662,10 @@ class Storage:
         assert not in_metadata
 
     def diff_tree(self, tree1, tree2, path="", find_renames=False):
-        """calls `git diff-tree` and returns tuples of the kind
+        """Calls `git diff-tree` and returns tuples of the kind
         (mode1,mode2,obj1,obj2,action,path1,path2)"""
 
-        # diff-tree returns records with the following structure:
+        # diff-tree returns lines with the following structure:
         # :<old-mode> <new-mode> <old-sha> <new-sha> <change> NUL <old-path> NUL [ <new-path> NUL ]
 
         path = path.strip("/")
@@ -738,7 +733,7 @@ if __name__ == '__main__':
                 result = t.read().split()
                 t.close()
                 assert len(result) == 7
-                return tuple([__pagesize*int(p) for p in result])
+                return tuple([__pagesize * int(p) for p in result])
             except:
                 raise RuntimeError("failed to get memory stats")
 
