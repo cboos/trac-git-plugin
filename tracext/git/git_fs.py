@@ -488,3 +488,5 @@ class GitChangeset(Changeset):
     def get_branches(self):
         return [(b, True) for b in self.repos.git.get_branch_names(self.rev)]
 
+    def get_tags(self, **filters):
+        return self.repos.git.get_tag_names(self.rev)
