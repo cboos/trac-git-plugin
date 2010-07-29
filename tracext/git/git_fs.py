@@ -486,6 +486,5 @@ class GitChangeset(Changeset):
                 yield (path, kind, action, p_path, p_rev)
 
     def get_branches(self):
-        return [(bname, True) for bname, bsha in self.repos.git.get_branches()
-                if bsha == self.rev]
+        return [(b, True) for b in self.repos.git.get_branch_names(self.rev)]
 
