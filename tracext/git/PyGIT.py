@@ -209,8 +209,8 @@ class Storage:
         self.__commit_msg_cache = SizedDict(200)
         self.__commit_msg_lock = Lock()
 
-        # branch cache
-        self._branches = None
+        # branch and tags caches
+        self._branches = self._tags = None
         # Note: no need for a Lock here, it's fast and in case of a race
         #       at worst we end up initializing more than once...
 
@@ -525,7 +525,31 @@ class Storage:
                 self._branch_by_name[bname] = bsha
 
     def get_tags(self):
-        return [e.strip() for e in self.repo.tag("-l").splitlines()]
+        """Return list of tags."""
+        self._init_tags()
+        return self._tags
+
+    def _init_tags(self):
+        if self._tags is None:
+            self._tags = [e.strip() for e in self.repo.tag("-l").splitlines()]
+            self._tags_by_sha = {}
+            self._tag_by_name = {}
+            i = 0
+            for sha in self.repo.rev_parse(*self._tags).splitlines():
+                t = self._tags[i]
+                self._tags_by_sha.setdefault(sha, []).append(t)
+                self._tag_by_name[t] = sha
+                i += 1
+
+    def get_tag_names(self, fullsha):
+        """Return the tag names for the given full SHA."""
+        self._init_tags()
+        return self._tags_by_sha.get(fullsha, [])
+
+    def get_tag_sha(self, tagname):
+        """Return the tag's revision id or `None`."""
+        self._init_tags()
+        return self._tag_by_name.get(tagname)
 
     def ls_tree(self, rev, path=""):
         rev = rev and str(rev) or 'HEAD' # paranoia
