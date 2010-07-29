@@ -209,7 +209,10 @@ class Storage:
         self.__commit_msg_cache = SizedDict(200)
         self.__commit_msg_lock = Lock()
 
-
+        # branch cache
+        self._branches = None
+        # Note: no need for a Lock here, it's fast and in case of a race
+        #       at worst we end up initializing more than once...
 
     def __del__(self):
         self.logger.debug("PyGIT.Storage instance %d destructed", id(self))
@@ -494,14 +497,32 @@ class Storage:
         The active branch (= HEAD) is the first item.
         
         """
-        result=[]
-        for e in self.repo.branch("-v", "--no-abbrev").splitlines():
-            (bname, bsha) = e[1:].strip().split()[:2]
-            if e.startswith('*'):
-                result.insert(0, (bname, bsha))
-            else:
-                result.append((bname, bsha))
-        return result
+        self._init_branches()
+        return self._branches
+
+    def get_branch_names(self, fullsha):
+        """Return the branch names for the given full SHA."""
+        self._init_branches()
+        return self._branches_by_sha.get(fullsha, [])
+
+    def get_branch_sha(self, branchname):
+        """Return the branch's revision id or `None`."""
+        self._init_branches()
+        return self._branch_by_name.get(branchname)
+
+    def _init_branches(self):
+        if self._branches is None:
+            self._branches_by_sha = {}
+            self._branch_by_name = {}
+            self._branches = []
+            for e in self.repo.branch("-v", "--no-abbrev").splitlines():
+                (bname, bsha) = e[1:].strip().split()[:2]
+                if e.startswith('*'):
+                    self._branches.insert(0, (bname, bsha))
+                else:
+                    self._branches.append((bname, bsha))
+                self._branches_by_sha.setdefault(bsha, []).append(bname)
+                self._branch_by_name[bname] = bsha
 
     def get_tags(self):
         return [e.strip() for e in self.repo.tag("-l").splitlines()]
