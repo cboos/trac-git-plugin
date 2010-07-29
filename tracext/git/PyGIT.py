@@ -248,11 +248,8 @@ class Storage:
                                   id(self))
                 new_db = {}
                 new_sdb = {}
-                new_tags = set([])
                 youngest = None
                 oldest = None
-                for revs in self.repo.rev_parse("--tags").splitlines():
-                    new_tags.add(revs.strip())
 
                 # helper for reusing strings
                 __rev_seen = {}
@@ -341,7 +338,7 @@ class Storage:
                 new_sdb = tmp
 
                 # atomically update self.__rev_cache
-                self.__rev_cache = youngest, oldest, new_db, new_tags, new_sdb
+                self.__rev_cache = youngest, oldest, new_db, new_sdb
                 self.logger.debug("rebuilt commit tree db for %d with %d "
                                   "entries", id(self), len(new_db))
 
@@ -410,8 +407,7 @@ class Storage:
         
         """
         rev = str(rev)
-
-        db, tag_db = self.rev_cache[2:4]
+        db = self.get_commits()
 
         if GitCore.is_sha(rev):
             # maybe it's a short or full rev
@@ -419,23 +415,14 @@ class Storage:
             if fullrev:
                 return fullrev
 
-        # fall back to external git calls
-        rc = self.repo.rev_parse("--verify", rev).strip()
-        if not rc:
-            return None
-
-        if rc in db:
+        rc = self.get_tag_sha(rev) or self.get_branch_sha(rev)
+        if rc:
             return rc
 
-        if rc in tag_db:
-            sha = self.repo.cat_file("tag", rc).split(None, 2)[:2]
-            if sha[0] != 'object':
-                self.logger.debug("unexpected result from "
-                                  "'git-cat-file tag %s'", rc)
-                return None
-            return sha[1]
-
-        return None
+        # fall back to external git calls
+        rc = self.repo.rev_parse("--verify", rev).strip()
+        if rc and rc in db:
+            return rc
 
     def shortrev(self, rev, min_len=7):
         """Try to shorten sha id"""
@@ -446,7 +433,7 @@ class Storage:
         if min_len < self.__SREV_MIN:
             min_len = self.__SREV_MIN
 
-        db, tag_db, sdb = self.rev_cache[2:5]
+        db, sdb = self.rev_cache[2:4]
 
         if rev not in db:
             return None
@@ -471,7 +458,7 @@ class Storage:
     def fullrev(self, srev):
         """Try to reverse shortrev()"""
         srev = str(srev)
-        db, tag_db, sdb = self.rev_cache[2:5]
+        db, sdb = self.rev_cache[2:4]
 
         # short-cut
         if len(srev) == 40 and srev in db:
